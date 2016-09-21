@@ -878,7 +878,7 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         // offer FragmentTasks for txn ids that don't match if we have
         // something in progress already
         if (txn == null) {
-            txn = new ParticipantTransactionState(msg.getSpHandle(), msg);
+            txn = new ParticipantTransactionState(msg.getSpHandle(), msg, msg.isReadOnly());
             m_outstandingTxns.put(msg.getTxnId(), txn);
             // Only want to send things to the command log if it satisfies this predicate
             // AND we've never seen anything for this transaction before.  We can't
@@ -1000,24 +1000,21 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         } else {
             // No k-safety means no replica: read/write queries on master.
             // K-safety: read-only queries (on master) or write queries (on replica).
-            if (txn == null) {
-                // this is one-shot read that should be released only when previous writes are all acked
-                if (m_defaultConsistencyReadLevel == ReadLevel.SAFE) {
-                    m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
-                    return;
-                }
-            } else {
-                if (txn.isReadOnly()) {
-                    // non early flush read MP
-                    if (m_defaultConsistencyReadLevel == ReadLevel.SAFE) {
-                        m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
-                        return;
-                    }
-                } else if (txn.isDone()) {
-                    // when write transaction is done
-                    setRepairLogTruncationHandle(txn.m_spHandle);
-                }
+            if (m_defaultConsistencyReadLevel == ReadLevel.SAFE && m_isLeader && m_sendToHSIds.length > 0 &&
+                    (txn == null || txn.isReadOnly()) ) {
+                // on k-safety leader with safe reads configuration: one shot reads + normal MP reads
+                // we will have to buffer these reads until previous writes acked in the cluster.
+                hostLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP FragmentResponseMessage,"
+                        + " current truncation handle: " + m_repairLogTruncationHandle
+                + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "),  MP read fragment SpHandle: "
+                + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")");
+                m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
+                return;
+            }
 
+            // for complete writes txn, we will advance the transaction point
+            if (!txn.isReadOnly() && txn.isDone()) {
+                setRepairLogTruncationHandle(txn.m_spHandle);
             }
         }
 
