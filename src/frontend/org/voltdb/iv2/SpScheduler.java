@@ -1013,7 +1013,7 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             }
 
             // for complete writes txn, we will advance the transaction point
-            if (!txn.isReadOnly() && txn.isDone()) {
+            if (txn != null && !txn.isReadOnly() && txn.isDone()) {
                 setRepairLogTruncationHandle(txn.m_spHandle);
             }
         }
