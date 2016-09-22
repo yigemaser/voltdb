@@ -1006,9 +1006,10 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 // we will have to buffer these reads until previous writes acked in the cluster.
                 hostLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read FragmentResponseMessage,"
                         + " current truncation handle: " + m_repairLogTruncationHandle
-                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
-                        + "MP read fragment txn SpHandle: "
-                        + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")");
+                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ") "
+                        + (txn == null ? "" : ", MP read fragment txn SpHandle: "
+                                + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")")
+                        );
 
                 m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
                 return;
