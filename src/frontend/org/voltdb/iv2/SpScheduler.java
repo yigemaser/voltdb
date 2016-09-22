@@ -1000,14 +1000,16 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         } else {
             // No k-safety means no replica: read/write queries on master.
             // K-safety: read-only queries (on master) or write queries (on replica).
-            if (m_defaultConsistencyReadLevel == ReadLevel.SAFE && m_isLeader && m_sendToHSIds.length > 0 &&
-                    (txn == null || txn.isReadOnly()) ) {
+            if (m_defaultConsistencyReadLevel == ReadLevel.SAFE && m_isLeader && m_sendToHSIds.length > 0
+                    && (txn == null || txn.isReadOnly()) ) {
                 // on k-safety leader with safe reads configuration: one shot reads + normal MP reads
                 // we will have to buffer these reads until previous writes acked in the cluster.
-                hostLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP FragmentResponseMessage,"
+                hostLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read FragmentResponseMessage,"
                         + " current truncation handle: " + m_repairLogTruncationHandle
-                + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "),  MP read fragment SpHandle: "
-                + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")");
+                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
+                        + "MP read fragment txn SpHandle: "
+                        + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")");
+
                 m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
                 return;
             }

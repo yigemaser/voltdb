@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
 
+import org.voltcore.logging.VoltLogger;
 import org.voltcore.messaging.Mailbox;
 import org.voltcore.messaging.VoltMessage;
 import org.voltdb.messaging.FragmentResponseMessage;
@@ -28,6 +29,7 @@ import org.voltdb.messaging.InitiateResponseMessage;
 
 public class BufferedReadLog
 {
+    protected static final VoltLogger hostLog = new VoltLogger("HOST");
     public static class Item {
         final InitiateResponseMessage m_initiateMsg;
         final FragmentResponseMessage m_fragmentMsg;
