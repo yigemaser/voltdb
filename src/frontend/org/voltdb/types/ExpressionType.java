@@ -133,6 +133,11 @@ public enum ExpressionType {
     // separate ExpressionType enumerals.
     // ----------------------------
     AGGREGATE_WINDOWED_RANK       (WindowedExpression.class,  70, "RANK"),
+    AGGREGATE_WINDOWED_DENSE_RANK (WindowedExpression.class,  71, "DENSE_RANK"),
+    // No support for PERCENT_RANK yet.
+    // AGGREGATE_WINDOWED_PERCENT_RANK(WindowedExpression.class, 72, "PERCENT_RANK"),
+    // No support for CUME_DIST yet.
+    // AGGREGATE_WINDOWED_CUME_DIST  (WindowedExpression.class,  73, "CUME_DIST"),
 
     // ----------------------------
     // Function

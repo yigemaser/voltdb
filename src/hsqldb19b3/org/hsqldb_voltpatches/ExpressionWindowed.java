@@ -43,17 +43,39 @@ import org.hsqldb_voltpatches.types.Type;
  *
  * @author Xin Jia
  */
-public class ExpressionRank extends Expression {
+public class ExpressionWindowed extends Expression {
     private List<Expression> m_partitionByList;
-    private SortAndSlice m_sortAndSlice;
+    private SortAndSlice     m_sortAndSlice;
+    private boolean          m_isDistinctAggregate;
 
-    ExpressionRank(SortAndSlice sortAndSlice, List<Expression> partitionByList, boolean isPercent) {
-        super(OpTypes.RANK);
-        nodes = Expression.emptyExpressionArray;
+    ExpressionWindowed(int tokenT,
+                       Expression aggExprs[],
+                       boolean isDistinct,
+                       SortAndSlice sortAndSlice,
+                       List<Expression> partitionByList) {
+        super(ParserBase.getExpressionType(tokenT));
+        nodes = aggExprs;
         m_partitionByList = partitionByList;
         m_sortAndSlice = sortAndSlice;
+        validateWindowedSyntax();
     }
 
+    /**
+     * Validate that this is a collection of values.
+     */
+    private void validateWindowedSyntax() {
+        // Check that the aggregate is one of the supported ones, and
+        // that the number of aggregate parameters is right.
+        switch (opType) {
+        case OpTypes.WINDOWED_RANK:
+        case OpTypes.WINDOWED_DENSE_RANK:
+            if (nodes.length != 0) {
+                throw Error.error("Windowed Aggregate " + OpTypes.aggregateName(opType) + " expects no arguments.", "", 0);
+            }
+        default:
+            throw Error.error("Unsupported windowed aggregate " + OpTypes.aggregateName(opType), "", 0);
+        }
+    }
     @Override
     public Object getValue(Session session) {
         return 0;
@@ -64,13 +86,24 @@ public class ExpressionRank extends Expression {
      */
     @Override
     Type getDataType() {
-        return Type.SQL_BIGINT;
+        switch (opType) {
+        case OpTypes.WINDOWED_RANK:
+        case OpTypes.WINDOWED_DENSE_RANK:
+            return Type.SQL_BIGINT;
+        default:
+            throw Error.error("Unsupported aggregate type " + OpTypes.aggregateName(opType), "", 0);
+        }
     }
 
     @Override
     public HsqlList resolveColumnReferences(RangeVariable[] rangeVarArray,
             int rangeCount, HsqlList unresolvedSet, boolean acceptsSequences) {
         HsqlList localSet = null;
+        // Resolve the aggregate expression.  For the RANK-like aggregates
+        // this is a no-op, because nodes is empty.
+        for (Expression e : nodes) {
+            localSet = e.resolveColumnReferences(RangeVariable.emptyArray, localSet);
+        }
         for (Expression e : m_partitionByList) {
             localSet = e.resolveColumnReferences(
                     RangeVariable.emptyArray, localSet);
@@ -100,6 +133,9 @@ public class ExpressionRank extends Expression {
 
     @Override
     public void resolveTypes(Session session, Expression parent) {
+        for (Expression expr : nodes) {
+            expr.resolveTypes(session, parent);
+        }
         for (Expression expr : m_partitionByList) {
             expr.resolveTypes(session, parent);
         }
@@ -115,32 +151,59 @@ public class ExpressionRank extends Expression {
 
         StringBuffer sb = new StringBuffer();
 
-        sb.append(Tokens.T_RANK).append("()").append(Tokens.T_ORDER + ' ' + Tokens.T_BY).append(' ');
-
-        // Todo
+        sb.append(OpTypes.aggregateName(opType)).append("(");
+        for (Expression e : nodes) {
+            sb.append(e.getSQL());
+        }
+        sb.append(") ")
+          .append(Tokens.T_OVER + " (");
+        if (m_partitionByList.size() > 0) {
+            sb.append(Tokens.T_PARTITION + ' ' + Tokens.T_BY + ' ');
+            for (int idx = 0; idx < m_partitionByList.size(); idx += 1) {
+                Expression expr = m_partitionByList.get(idx);
+                sb.append(expr.getSQL());
+                if (idx < m_partitionByList.size()-1) {
+                    sb.append(", ");
+                } else {
+                    sb.append(" ");
+                }
+            }
+        }
+        if (m_sortAndSlice.getOrderLength() > 0) {
+            sb.append(Tokens.T_ORDER + ' ' + Tokens.T_BY + ' ');
+            for (int idx = 0; idx < m_sortAndSlice.getOrderLength(); idx += 1) {
+                Expression obExpr = (Expression) m_sortAndSlice.exprList.get(idx);
+                sb.append(obExpr.getSQL())
+                  .append(' ')
+                  .append(m_sortAndSlice.sortDescending[idx] ? Tokens.T_DESC : Tokens.T_ASC);
+                if (idx < m_sortAndSlice.getOrderLength()-1) {
+                    sb.append(", ");
+                } else {
+                    sb.append(" ");
+                }
+            }
+        }
+        sb.append(")");
         return sb.toString();
     }
 
     @Override
     protected String describe(Session session, int blanks) {
-
-        StringBuffer sb = new StringBuffer();
-
-        sb.append('\n');
-
-        for (int i = 0; i < blanks; i++) {
-            sb.append(' ');
-        }
-
-        sb.append(Tokens.T_ORDER).append(' ').append(Tokens.T_BY);
-        sb.append(' ');
-
-        return sb.toString();
+        return getSQL();
     }
 
-    public VoltXMLElement voltAnnotateRankXML(VoltXMLElement exp, SimpleColumnContext context)
+    /**
+     * Add partitionby and orderby information to the windowed aggregate XML node.
+     * When we really implement windowing here, we will want to add more attributes.
+     *
+     * @param exp
+     * @param context
+     * @return
+     * @throws HSQLParseException
+     */
+    public VoltXMLElement voltAnnotateWindowedAggregateXML(VoltXMLElement exp, SimpleColumnContext context)
             throws HSQLParseException {
-    	if (m_partitionByList.size() > 0) {
+        if (m_partitionByList.size() > 0) {
             VoltXMLElement pxe = new VoltXMLElement("partitionbyList");
             exp.children.add(pxe);
             for (Expression e : m_partitionByList) {

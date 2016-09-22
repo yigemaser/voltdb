@@ -344,10 +344,6 @@ public abstract class AbstractParsedStmt {
         }
         else if (elementName.equals("aggregation")) {
             retval = parseAggregationExpression(exprNode);
-            if (m_aggregationList != null) {
-                ExpressionUtil.finalizeValueTypes(retval);
-                m_aggregationList.add(retval);
-            }
         }
         else if (elementName.equals("function")) {
             retval = parseFunctionExpression(exprNode);
@@ -361,7 +357,8 @@ public abstract class AbstractParsedStmt {
         else if (elementName.equals("row")) {
             retval = parseRowExpression(exprNode);
         }
-        else if (elementName.equals("rank")) {
+        else if (elementName.equals("rank")
+                || elementName.equals("dense_rank")) {
             retval = parseRankValueExpression(exprNode);
         }
         else {
@@ -1001,6 +998,7 @@ public abstract class AbstractParsedStmt {
     private AbstractExpression parseAggregationExpression(VoltXMLElement exprNode)
     {
         String type = exprNode.attributes.get("optype");
+        // %%%
         ExpressionType exprType = ExpressionType.get(type);
 
         if (exprType == ExpressionType.INVALID) {
@@ -1031,6 +1029,10 @@ public abstract class AbstractParsedStmt {
         String node;
         if ((node = exprNode.attributes.get("distinct")) != null && Boolean.parseBoolean(node)) {
             expr.setDistinct();
+        }
+        if (m_aggregationList != null) {
+            ExpressionUtil.finalizeValueTypes(expr);
+            m_aggregationList.add(expr);
         }
         return expr;
     }
