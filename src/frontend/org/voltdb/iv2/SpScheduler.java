@@ -723,6 +723,8 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             }
         }
 
+        long currentTruncationHandle = m_repairLogTruncationHandle;
+
         final long spHandle = message.getSpHandle();
         final DuplicateCounterKey dcKey = new DuplicateCounterKey(message.getTxnId(), spHandle);
         DuplicateCounter counter = m_duplicateCounters.get(dcKey);
@@ -744,6 +746,13 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             setRepairLogTruncationHandle(spHandle);
             m_mailbox.send(message.getInitiatorHSId(), message);
         }
+
+        if (m_repairLogTruncationHandle == currentTruncationHandle) {
+            tmLog.warn("[SpScheduler:handleInitiateResponseMessage] DuplicateCounter " +
+                    (counter == null ? "null": "is not null, in waiting state")
+                    + " Txn not advance truncation point: " + message);
+        }
+
     }
 
     // BorrowTaskMessages encapsulate a FragmentTaskMessage along with
@@ -978,6 +987,8 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         DuplicateCounter counter =
             m_duplicateCounters.get(new DuplicateCounterKey(message.getTxnId(), message.getSpHandle()));
         final TransactionState txn = m_outstandingTxns.get(message.getTxnId());
+        long currentTruncationHandle = m_repairLogTruncationHandle;
+
         if (counter != null) {
             int result = counter.offer(message);
             if (result == DuplicateCounter.DONE) {
@@ -996,6 +1007,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 VoltDB.crashGlobalVoltDB("HASH MISMATCH running multi-part procedure.", true, null);
             }
             // doing duplicate suppresion: all done.
+
+            if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter " +
+                        "in waiting state， Txn not advance truncation point: " + message);
+            }
+
             return;
         } else {
             // No k-safety means no replica: read/write queries on master.
@@ -1004,7 +1021,7 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                     && (txn == null || txn.isReadOnly()) ) {
                 // on k-safety leader with safe reads configuration: one shot reads + normal MP reads
                 // we will have to buffer these reads until previous writes acked in the cluster.
-                hostLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read FragmentResponseMessage,"
+                tmLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read FragmentResponseMessage,"
                         + " current truncation handle: " + m_repairLogTruncationHandle
                         + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ") "
                         + (txn == null ? "" : ", MP read fragment txn SpHandle: "
@@ -1018,6 +1035,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             // for complete writes txn, we will advance the transaction point
             if (txn != null && !txn.isReadOnly() && txn.isDone()) {
                 setRepairLogTruncationHandle(txn.m_spHandle);
+            }
+
+            if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter NULL, txn state "
+                        + (txn == null? " NULL": "NOT NULL, read only:" + txn.isReadOnly() + ", txn done: " + txn.isDone())
+                        + " Txn not advance truncation point: " + message);
             }
         }
 
@@ -1080,9 +1103,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             txnDone = counter.offer(msg) == DuplicateCounter.DONE;
         }
 
+        long currentTruncationHandle = m_repairLogTruncationHandle;
+        TransactionState myState = null;
         if (txnDone) {
             assert !msg.isRestart();
             final TransactionState txn = m_outstandingTxns.remove(msg.getTxnId());
+            myState = txn;
             m_duplicateCounters.remove(duplicateCounterKey);
 
             if (txn != null) {
@@ -1101,6 +1127,16 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         // committed the transaction.
         if (!m_isLeader) {
             m_mailbox.send(msg.getSPIHSId(), msg);
+        }
+
+        if (m_repairLogTruncationHandle == currentTruncationHandle) {
+            tmLog.warn("[Spscheduler:handleCompleteTransactionResponseMessage] DuplicateCounter "
+                    + (counter == null ? "NULL" : "NOT NULL")
+                    + ", is leader: " + m_isLeader
+                    + ", msg.isRestart: " + msg.isRestart()
+                    + ", txnDone: " + txnDone + ", TXN state: "
+                    + (myState == null? "NULL": "NOT NULL")
+                    + ", Txn not advance truncation point: " + msg);
         }
     }
 
