@@ -1009,8 +1009,11 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             // doing duplicate suppresion: all done.
 
             if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter " +
-                        "in waiting state， Txn not advance truncation point: " + message);
+                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter "
+                        + "in waiting state， "
+                        + " current truncation handle: " + m_repairLogTruncationHandle
+                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
+                        + "Txn not advance truncation point: " + message);
             }
 
             return;
@@ -1021,12 +1024,15 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                     && (txn == null || txn.isReadOnly()) ) {
                 // on k-safety leader with safe reads configuration: one shot reads + normal MP reads
                 // we will have to buffer these reads until previous writes acked in the cluster.
-                tmLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read FragmentResponseMessage,"
-                        + " current truncation handle: " + m_repairLogTruncationHandle
-                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ") "
-                        + (txn == null ? "" : ", MP read fragment txn SpHandle: "
-                                + txn.m_spHandle + " (" + TxnEgo.txnIdToString(txn.m_spHandle) + ")")
-                        );
+
+                if (txn != null && m_repairLogTruncationHandle == txn.m_spHandle) {
+
+                } else {
+                    tmLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read frag,"
+                            + "either one shot read"
+                            + " current truncation handle: " + m_repairLogTruncationHandle
+                            + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ") ");
+                }
 
                 m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
                 return;
@@ -1040,6 +1046,8 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             if (m_repairLogTruncationHandle == currentTruncationHandle) {
                 tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter NULL, txn state "
                         + (txn == null? " NULL": "NOT NULL, read only:" + txn.isReadOnly() + ", txn done: " + txn.isDone())
+                        + " current truncation handle: " + m_repairLogTruncationHandle
+                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
                         + " Txn not advance truncation point: " + message);
             }
         }
