@@ -2196,33 +2196,49 @@ public class ParsedSelectStmt extends AbstractParsedStmt {
     public boolean isDML() { return false; }
 
     /**
-     * Return true iff all the windowed expressions have a table partition column
-     * in their partition by list.  Since we only support one windowed expression
-     * now, this returns true if there are no windowed expressions.
+     * Return true iff all the windowed partition expressions have a table partition column
+     * in their partition by list, and if there is one such windowed partition expression.  If there are
+     * no windowed expressions, we return false.  Note that there can only be one windowed
+     * expression currently, so this is more general than it needs to be.
      *
      * @return
      */
     public boolean isPartitionColumnInWindowedAggregatePartitionByList() {
-        for (WindowedExpression we : getWindowedExpressions()) {
-            List<AbstractExpression> partitionByExprs = we.getPartitionByExpressions();
-            for (AbstractExpression ae : partitionByExprs) {
-                if ( ! (ae instanceof TupleValueExpression ) ) {
-                    continue;
-                }
-                TupleValueExpression tve = (TupleValueExpression)ae;
-                String tableAlias    = tve.getTableAlias();
-                String columnName    = tve.getColumnName();
-                StmtTableScan scanTable = getStmtTableScanByAlias(tableAlias);
-                if (scanTable == null || scanTable.getPartitioningColumns() == null) {
-                    continue;
-                }
-                for (SchemaColumn pcol : scanTable.getPartitioningColumns()) {
-                    if (pcol != null && pcol.getColumnName().equals(columnName)) {
-                        return true;
-                    }
+        if (getWindowedExpressions().size() == 0) {
+            return false;
+        }
+        // We can't really have more than one Windowed Aggregate Expression.  If
+        // we ever do, this should fail gracelessly.
+        assert(getWindowedExpressions().size() == 1);
+        WindowedExpression we = getWindowedExpressions().get(0);
+        List<AbstractExpression> partitionByExprs = we.getPartitionByExpressions();
+        boolean foundPartExpr = false;
+        for (AbstractExpression ae : partitionByExprs) {
+            if ( ! (ae instanceof TupleValueExpression ) ) {
+                continue;
+            }
+            TupleValueExpression tve = (TupleValueExpression)ae;
+            String tableAlias    = tve.getTableAlias();
+            String columnName    = tve.getColumnName();
+            StmtTableScan scanTable = getStmtTableScanByAlias(tableAlias);
+            if (scanTable == null || scanTable.getPartitioningColumns() == null) {
+                continue;
+            }
+            boolean foundPartCol = false;
+            for (SchemaColumn pcol : scanTable.getPartitioningColumns()) {
+                if (pcol != null && pcol.getColumnName().equals(columnName)) {
+                    foundPartCol = true;
+                    break;
                 }
             }
+            // If we found a partition column, then we don't
+            // need to look at any other partition by expressions
+            // in this windowed expression.
+            if (foundPartCol) {
+                foundPartExpr = true;
+                break;
+            }
         }
-        return false;
+        return foundPartExpr;
     }
 }

@@ -1612,10 +1612,20 @@ public class ParserDQL extends ParserBase {
         // aggregate expression as a non-windowed expression.  We do
         // care about its parameters and whether it's specified as
         // unique though.
-        ExpressionAggregate winAggExpr = (ExpressionAggregate)aggExpr;
+        assert(aggExpr == null || aggExpr instanceof ExpressionAggregate);
+        Expression nodes[];
+        boolean isDistinct;
+        if (aggExpr != null) {
+            ExpressionAggregate winAggExpr = (ExpressionAggregate)aggExpr;
+            nodes = winAggExpr.nodes;
+            isDistinct = winAggExpr.isDistinctAggregate;
+        } else {
+            nodes = Expression.emptyExpressionArray;
+            isDistinct = false;
+        }
         ExpressionWindowed windowedExpr = new ExpressionWindowed(tokenT,
-                                                                 winAggExpr.nodes,
-                                                                 winAggExpr.isDistinctAggregate,
+                                                                 nodes,
+                                                                 isDistinct,
                                                                  sortAndSlice,
                                                                  partitionByList);
 

@@ -72,6 +72,7 @@ public class ExpressionWindowed extends Expression {
             if (nodes.length != 0) {
                 throw Error.error("Windowed Aggregate " + OpTypes.aggregateName(opType) + " expects no arguments.", "", 0);
             }
+            break;
         default:
             throw Error.error("Unsupported windowed aggregate " + OpTypes.aggregateName(opType), "", 0);
         }
@@ -173,9 +174,11 @@ public class ExpressionWindowed extends Expression {
             sb.append(Tokens.T_ORDER + ' ' + Tokens.T_BY + ' ');
             for (int idx = 0; idx < m_sortAndSlice.getOrderLength(); idx += 1) {
                 Expression obExpr = (Expression) m_sortAndSlice.exprList.get(idx);
+                assert(obExpr instanceof ExpressionOrderBy);
+                ExpressionOrderBy obOrderByExpression = (ExpressionOrderBy)obExpr;
                 sb.append(obExpr.getSQL())
                   .append(' ')
-                  .append(m_sortAndSlice.sortDescending[idx] ? Tokens.T_DESC : Tokens.T_ASC);
+                  .append(obOrderByExpression.isDescending() ? Tokens.T_DESC : Tokens.T_ASC);
                 if (idx < m_sortAndSlice.getOrderLength()-1) {
                     sb.append(", ");
                 } else {
@@ -193,8 +196,18 @@ public class ExpressionWindowed extends Expression {
     }
 
     /**
-     * Add partitionby and orderby information to the windowed aggregate XML node.
-     * When we really implement windowing here, we will want to add more attributes.
+     * Create a VoltXMLElement for a windowed aggregate expression.  The
+     * children are parts of the expression.  For example, consider the
+     * expression <code>MAX(A+B) OVER (PARTITION BY E1, E2 ORDER BY E3 ASC)</code>.
+     * There will be these children.
+     * <ul>
+     *   <li>A child named "winspec" with the windowed specification.  This would
+     *       have a list of expressions <code>E1</code> and <code>E2</code>
+     *       for the partition by, a list of expressions E3 for the order by and
+     *       a list of sort orders for the order by in the expression above.</li>
+     *   <li>A child named "winargs" with the argument to the aggregate.  This
+     *       would be <code>A+B</code> in the expression above.</li>
+     * </ul>
      *
      * @param exp
      * @param context
@@ -203,16 +216,20 @@ public class ExpressionWindowed extends Expression {
      */
     public VoltXMLElement voltAnnotateWindowedAggregateXML(VoltXMLElement exp, SimpleColumnContext context)
             throws HSQLParseException {
+        VoltXMLElement winspec = new VoltXMLElement("winspec");
+        VoltXMLElement winargs = new VoltXMLElement("winargs");
+        exp.children.add(winspec);
+        exp.children.add(winargs);
         if (m_partitionByList.size() > 0) {
             VoltXMLElement pxe = new VoltXMLElement("partitionbyList");
-            exp.children.add(pxe);
+            winspec.children.add(pxe);
             for (Expression e : m_partitionByList) {
                 pxe.children.add(e.voltGetXML(context, null));
             }
         }
 
         VoltXMLElement rxe = new VoltXMLElement("orderbyList");
-        exp.children.add(rxe);
+        winspec.children.add(rxe);
 
         for (int i = 0; i < m_sortAndSlice.exprList.size(); i++) {
             Expression e = (Expression) m_sortAndSlice.exprList.get(i);
@@ -224,7 +241,11 @@ public class ExpressionWindowed extends Expression {
             rxe.children.add(orderby);
         }
 
+        if (nodes.length > 0) {
+            for (Expression expr : nodes) {
+                winargs.children.add(expr.voltGetXML(context, null));
+            }
+        }
         return exp;
     }
-
 }

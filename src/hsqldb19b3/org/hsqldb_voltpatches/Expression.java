@@ -1541,8 +1541,8 @@ public class Expression {
         prototypes.put(OpTypes.VAR_POP,       (new VoltXMLElement("aggregation")).withValue("optype", "varpop"));
         prototypes.put(OpTypes.VAR_SAMP,      (new VoltXMLElement("aggregation")).withValue("optype", "varsamp"));
         // windowed aggregate functions
-        prototypes.put(OpTypes.WINDOWED_RANK,          new VoltXMLElement("aggregation")).withValue("optype", "windowed_rank");
-        prototypes.put(OpTypes.WINDOWED_DENSE_RANK,  new VoltXMLElement("aggregation")).withValue("optype", "windowed_dense_rank");
+        prototypes.put(OpTypes.WINDOWED_RANK, (new VoltXMLElement("win_aggregation")).withValue("optype", "windowed_rank"));
+        prototypes.put(OpTypes.WINDOWED_DENSE_RANK,  (new VoltXMLElement("win_aggregation")).withValue("optype", "windowed_dense_rank"));
         // No support for WINDOWED_PERCENT_RANK yet.
         // No support for WINDOWED_CUME_DIST yet.
         // prototypes.put(OpTypes.WINDOWED_PERCENT_RANK,  new VoltXMLElement("percent_rank");
