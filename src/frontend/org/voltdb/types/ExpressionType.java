@@ -128,7 +128,7 @@ public enum ExpressionType {
     // For one thing, windowed aggregates have class WindowedExpression.class,
     // and non-windowed aggregates have class AggregateExpression.class.
     //
-    // We only support RANK now, but when we support different
+    // We only support RANK and DENSE_RANK now.  But when we support different
     // aggregate functions we will want to keep them as
     // separate ExpressionType enumerals.
     // ----------------------------
@@ -249,6 +249,8 @@ public enum ExpressionType {
     }
 
     public boolean isNullary() {
-        return this == ExpressionType.AGGREGATE_COUNT_STAR || this == ExpressionType.AGGREGATE_WINDOWED_RANK;
+        return this == ExpressionType.AGGREGATE_COUNT_STAR
+                || this == ExpressionType.AGGREGATE_WINDOWED_RANK
+                || this == ExpressionType.AGGREGATE_WINDOWED_DENSE_RANK;
     }
 }

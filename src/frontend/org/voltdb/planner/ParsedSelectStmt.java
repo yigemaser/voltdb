@@ -826,7 +826,7 @@ public class ParsedSelectStmt extends AbstractParsedStmt {
         // Check for windowed expressions.
         if (m_windowedExpressions.size() > 0) {
             if (m_windowedExpressions.size() > 1) {
-                throw new PlanningErrorException("Only one windowed RANK() expression may appear in a selection list.");
+                throw new PlanningErrorException("Only one windowed function call may appear in a selection list.");
             }
             //
             // This could be an if statement, but I think it's better to
@@ -837,16 +837,17 @@ public class ParsedSelectStmt extends AbstractParsedStmt {
             List<AbstractExpression> orderByExpressions = windowedExpression.getOrderByExpressions();
             switch (windowedExpression.getExpressionType()) {
             case AGGREGATE_WINDOWED_RANK:
+            case AGGREGATE_WINDOWED_DENSE_RANK:
                 if (orderByExpressions.size() == 0) {
-                    throw new PlanningErrorException("Windowed RANK() expressions need an ORDER BY expression.");
+                    throw new PlanningErrorException("Windowed function call expressions need an ORDER BY expression.");
                 }
                 if (orderByExpressions.size() > 1) {
                     // This is perhaps slightly misleading.
-                    throw new PlanningErrorException("Windowed RANK() expressions can have only one ORDER BY expression in their window.");
+                    throw new PlanningErrorException("Windowed function call expressions can have only one ORDER BY expression in their window.");
                 }
                 VoltType valType = orderByExpressions.get(0).getValueType();
                 if (!valType.isAnyIntegerType() && (valType != VoltType.TIMESTAMP)) {
-                    throw new PlanningErrorException("Windowed RANK() expressions can have only integer or TIMESTAMP value types in the ORDER BY expression of their window.");
+                    throw new PlanningErrorException("Windowed function call expressions can have only integer or TIMESTAMP value types in the ORDER BY expression of their window.");
                 }
             }
         }
@@ -855,7 +856,7 @@ public class ParsedSelectStmt extends AbstractParsedStmt {
     private void parseGroupByColumns(VoltXMLElement columnsNode) {
         if (hasWindowedExpression()) {
             throw new PlanningErrorException(
-                    "Use of both windowed RANK() and GROUP BY in a single query is not supported.");
+                    "Use of both a windowed function call and GROUP BY in a single query is not supported.");
         }
         for (VoltXMLElement child : columnsNode.children) {
             parseGroupByColumn(child);

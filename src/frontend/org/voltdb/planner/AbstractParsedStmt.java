@@ -533,6 +533,12 @@ public abstract class AbstractParsedStmt {
      */
     private AbstractExpression parseWindowedAggregationExpression(VoltXMLElement exprNode) {
         int id = Integer.parseInt(exprNode.attributes.get("id"));
+        String optypeName = exprNode.attributes.get("optype");
+        ExpressionType optype = ExpressionType.get(optypeName);
+        if (optype == ExpressionType.INVALID) {
+            throw new PlanningErrorException("Undefined windowed function call " + optypeName);
+        }
+
         // If this is not in the display column list, and the id is not the id of
         // the windowed expression, then this is an error.
         if (!m_parsingInDisplayColumns) {
@@ -547,7 +553,7 @@ public abstract class AbstractParsedStmt {
                     return we.getDisplayListExpression();
                 }
             }
-            throw new PlanningErrorException("Windowed function calls can only appear in the selection list of a query or subquery.");
+            throw new PlanningErrorException("Windowed function call expressions can only appear in the selection list of a query or subquery.");
         }
         // Parse individual aggregate expressions
         List<AbstractExpression> partitionbyExprs = new ArrayList<>();
@@ -558,7 +564,7 @@ public abstract class AbstractParsedStmt {
         for (VoltXMLElement childEle : exprNode.children) {
             if (childEle.name.equals("winspec")) {
                 for (VoltXMLElement ele : childEle.children) {
-                    if (ele.name.equals("partitionByList")) {
+                    if (ele.name.equals("partitionbyList")) {
                         for (int i = 0; i < ele.children.size(); i++) {
                             VoltXMLElement childNode = ele.children.get(i);
                             AbstractExpression expr = parseExpressionNode(childNode);
@@ -594,7 +600,7 @@ public abstract class AbstractParsedStmt {
         if (exprNode.attributes.containsKey("alias")) {
             alias = exprNode.attributes.get("alias");
         }
-        WindowedExpression rankExpr = new WindowedExpression(ExpressionType.AGGREGATE_WINDOWED_RANK,
+        WindowedExpression rankExpr = new WindowedExpression(optype,
                                                              partitionbyExprs,
                                                              orderbyExprs,
                                                              orderbyDirs,

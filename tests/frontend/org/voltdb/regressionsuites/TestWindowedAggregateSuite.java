@@ -186,7 +186,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
         client.callProcedure("tu.insert", 80, 2);
     }
 
-    public void testRank_UNIQUE() throws NoConnectionsException, IOException, ProcCallException {
+    public void notestRank_UNIQUE() throws NoConnectionsException, IOException, ProcCallException {
         Client client = getClient();
         VoltTable vt = null;
 
@@ -215,7 +215,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
     //
     // NON-UNIQUE RANK SCAN TEST
     //
-    public void testRank_NON_UNIQUE() throws NoConnectionsException, IOException, ProcCallException {
+    public void notestRank_NON_UNIQUE() throws NoConnectionsException, IOException, ProcCallException {
         Client client = getClient();
         VoltTable vt = null;
 
@@ -254,26 +254,31 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
     // rank2 is the rank for partition by A, AA, order by B
     private long expected[][] = new long[][] {
         // A     AA   B     C    rank1   rank2   rank3
+        //--------------------------------------
         {  1L,  301L, 1L,  101L, 1L,      1L,      1L},
         {  1L,  301L, 1L,  102L, 1L,      1L,      1L},
-
+        //======================================
         {  1L,  302L, 2L,  201L, 3L,      1L,      2L},
         {  1L,  302L, 2L,  202L, 3L,      1L,      2L},
+        //======================================
         {  1L,  302L, 3L,  203L, 5L,      3L,      3L},
-
+        //--------------------------------------
         {  2L,  303L, 1L, 1101L, 1L,      1L,      1L},
         {  2L,  303L, 1L, 1102L, 1L,      1L,      1L},
+        //======================================
         {  2L,  303L, 2L, 1201L, 3L,      3L,      2L},
-
         {  2L,  304L, 2L, 1202L, 3L,      1L,      3L},
+        //======================================
         {  2L,  304L, 3L, 1203L, 5L,      2L,      4L},
-
+        //--------------------------------------
         { 20L,  305L, 1L, 2101L, 1L,      1L,      1L},
         { 20L,  305L, 1L, 2102L, 1L,      1L,      1L},
+        //======================================
         { 20L,  305L, 2L, 2201L, 3L,      3L,      2L},
-
         { 20L,  306L, 2L, 2202L, 3L,      1L,      2L},
+        //======================================
         { 20L,  306L, 3L, 2203L, 5L,      2L,      3L},
+        //--------------------------------------
     };
 
     // Names for the column indices.
@@ -285,7 +290,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
     final int colR_AA       = 5;
     final int colR_dense    = 6;
 
-    public void testRankWithString() throws Exception {
+    public void notestRankWithString() throws Exception {
         Client client = getClient();
 
         long input[][] = expected.clone();
@@ -326,7 +331,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
     }
 
 
-    public void testRankWithTimestamp() throws Exception {
+    public void notestRankWithTimestamp() throws Exception {
         Client client = getClient();
 
         long baseTime = TimestampType.millisFromJDBCformat("1953-06-10 00:00:00");
@@ -352,7 +357,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
         }
     }
 
-    public void testRankPartitionedTable() throws Exception {
+    public void notestRankPartitionedTable() throws Exception {
         Client client = getClient();
 
         long input[][] = expected.clone();
@@ -435,7 +440,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
 
     }
 
-    public void testRankFunction(String sql, int expectedCol) throws Exception {
+    public void validateRankFunction(String sql, int expectedCol) throws Exception {
         Client client = getClient();
 
         long input[][] = expected.clone();
@@ -459,12 +464,12 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
     }
 
     public void testRank() throws Exception {
-        testRankFunction("select A, B, C, rank() over (partition by A order by B) as R from T ORDER BY A, B, C, R;",
-                         colR_A);
-        testRankFunction("select A, B, C, dense_rank() over (partition by A order by B) as R from T ORDER BY A, B, C, R;",
-                         colR_dense);
+        validateRankFunction("select A, B, C, rank() over (partition by A order by B) as R from T ORDER BY A, B, C, R;",
+                              colR_A);
+        validateRankFunction("select A, B, C, dense_rank() over (partition by A order by B) as R from T ORDER BY A, B, C, R;",
+                             colR_dense);
     }
-    public void testRankMultPartitionBys() throws Exception {
+    public void notestRankMultPartitionBys() throws Exception {
         Client client = getClient();
 
         long input[][] = expected.clone();
@@ -488,7 +493,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
         }
     }
 
-    public void testRankOrderbyExpressions() throws Exception {
+    public void notestRankOrderbyExpressions() throws Exception {
         Client client = getClient();
 
         long input[][] = expected.clone();
@@ -520,7 +525,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
      *
      * @throws Exception
      */
-    public void testSubqueryWindowedExpressions() throws Exception {
+    public void notestSubqueryWindowedExpressions() throws Exception {
         Client client = getClient();
 
         client.callProcedure("P2.insert", 0, 2, null, -67);
@@ -567,7 +572,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
      * the same as the original plan.  We don't serialize sort orders
      * for windowed aggregates.
      */
-    public void testExplainPlan() throws Exception {
+    public void notestExplainPlan() throws Exception {
         Client client = getClient();
         String sql = "select rank() over ( partition by A, B order by C ) from T;";
 
@@ -586,7 +591,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
         }
     }
 
-    public void testEng10972() throws Exception {
+    public void notestEng10972() throws Exception {
         // reproducer for ENG-10972 and ENG-10973, found by sqlcoverage
         Client client = getClient();
         VoltTable vt;
@@ -613,7 +618,7 @@ public class TestWindowedAggregateSuite extends RegressionSuite {
             {2.0, 1}}, vt);
     }
 
-    public void testEng11029() throws Exception {
+    public void notestEng11029() throws Exception {
         // Regression test for ENG-11029
         Client client = getClient();
 
