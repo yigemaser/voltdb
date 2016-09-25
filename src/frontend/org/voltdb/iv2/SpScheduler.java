@@ -740,9 +740,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             }
 
             if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[InitResponseMsg] DuplicateCounter in waiting state, "
-                        + "current truncation point: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
-                        + " Txn not advance truncation point: " + message);
+                try {
+                    tmLog.warn("[InitResponseMsg] DuplicateCounter in waiting state, "
+                            + "current truncation point: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                            + " Txn not advance truncation point: " + message);
+                } catch (Exception ex) {}
+
             }
         }
         else {
@@ -1010,9 +1013,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             // doing duplicate suppresion: all done.
 
             else if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[FragResponseMsg Counter NON NULL] "
-                        + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
-                        + "Txn not advance truncation point: " + message);
+                try {
+                    tmLog.warn("[FragResponseMsg Counter NON NULL] "
+                            + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                            + "Txn not advance truncation point: " + message);
+                } catch (Exception e) {}
+
             }
 
             return;
@@ -1032,14 +1038,17 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                     m_bufferedReadLog.offer(m_mailbox, message, txn.m_spHandle, m_repairLogTruncationHandle);
                 }
 
-                if (! canRelease) {
-                    long txnId = (txn == null ? message.getSpHandle() : txn.m_spHandle);
-                    tmLog.warn("[FragResponseMsg buffer]: buffer a non-released MP read frag,"
-                            + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
-                            + " mp read spHandle: " + TxnEgo.debugTxnId(txnId)
-                            + " message: " + message.toString()
-                            );
-                }
+                try {
+                    if (! canRelease) {
+                        long txnId = (txn == null ? message.getSpHandle() : txn.m_spHandle);
+                        tmLog.warn("[FragResponseMsg buffer]: buffer a non-released MP read frag,"
+                                + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                                + " mp read spHandle: " + TxnEgo.debugTxnId(txnId)
+                                + " message: " + message.toString()
+                                );
+                    }
+                } catch (Exception e) {}
+
                 return;
             }
 
@@ -1048,12 +1057,15 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 setRepairLogTruncationHandle(txn.m_spHandle);
             }
 
-            if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[FragResponseMsg Counter NULL] txn state "
-                        + (txn == null? " NULL": "NOT NULL, read only:" + txn.isReadOnly() + ", txn done: " + txn.isDone())
-                        + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
-                        + " Txn not advance truncation point: " + message);
-            }
+            try {
+                if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                    tmLog.warn("[FragResponseMsg Counter NULL] txn state "
+                            + (txn == null? " NULL": "NOT NULL, read only:" + txn.isReadOnly() + ", txn done: " + txn.isDone())
+                            + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                            + " Txn not advance truncation point: " + message);
+                }
+            } catch (Exception e) {}
+
         }
 
         m_mailbox.send(message.getDestinationSiteId(), message);
@@ -1141,15 +1153,18 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             m_mailbox.send(msg.getSPIHSId(), msg);
         }
 
-        if (m_repairLogTruncationHandle == currentTruncationHandle) {
-            tmLog.warn("[Spscheduler:handleCompleteTransactionResponseMessage] DuplicateCounter "
-                    + (counter == null ? "NULL" : "NOT NULL")
-                    + ", is leader: " + m_isLeader
-                    + ", msg.isRestart: " + msg.isRestart()
-                    + ", txnDone: " + txnDone + ", TXN state: "
-                    + (myState == null? "NULL": "NOT NULL")
-                    + ", Txn not advance truncation point: " + msg);
-        }
+        try {
+            if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                tmLog.warn("[Spscheduler:handleCompleteTransactionResponseMessage] DuplicateCounter "
+                        + (counter == null ? "NULL" : "NOT NULL")
+                        + ", is leader: " + m_isLeader
+                        + ", msg.isRestart: " + msg.isRestart()
+                        + ", txnDone: " + txnDone + ", TXN state: "
+                        + (myState == null? "NULL": "NOT NULL")
+                        + ", Txn not advance truncation point: " + msg);
+            }
+        } catch (Exception e) {}
+
     }
 
     /**
@@ -1322,8 +1337,8 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         if (m_defaultConsistencyReadLevel == ReadLevel.SAFE) {
             m_bufferedReadLog.releaseBufferedReads(m_mailbox, m_repairLogTruncationHandle);
         }
-        hostLog.warn("[dump] current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
-                + " " + (m_defaultConsistencyReadLevel == Consistency.ReadLevel.SAFE ? m_bufferedReadLog.toString() : ""));
+        hostLog.warn("[dump] current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle) + " "
+            + (m_defaultConsistencyReadLevel == Consistency.ReadLevel.SAFE ? m_bufferedReadLog.toString() : ""));
     }
 
     public void setConsistentReadLevelForTestOnly(ReadLevel readLevel) {
