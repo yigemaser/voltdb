@@ -266,7 +266,7 @@ public class FragmentResponseMessage extends VoltMessage {
         sb.append(") FOR TXN ");
         sb.append(m_txnId);
         sb.append(", SP HANDLE: ");
-        sb.append(m_spHandle).append(" (").append(TxnEgo.txnIdToString(m_spHandle)).append(")");
+        sb.append(TxnEgo.debugTxnId(m_spHandle));
 
         if (m_status == SUCCESS)
             sb.append("\n  SUCCESS");

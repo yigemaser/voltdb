@@ -121,7 +121,7 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
 
         @Override
         public String toString() {
-            return "<" + TxnEgo.txnIdToString(m_txnId) + ", " + TxnEgo.txnIdToString(m_spHandle) + ">";
+            return "<" + TxnEgo.debugTxnId(m_txnId) + ", " + TxnEgo.debugTxnId(m_spHandle) + ">";
         }
     };
 
@@ -738,6 +738,12 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             else if (result == DuplicateCounter.MISMATCH) {
                 VoltDB.crashGlobalVoltDB("HASH MISMATCH: replicas produced different results.", true, null);
             }
+
+            if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                tmLog.warn("[InitResponseMsg] DuplicateCounter in waiting state, "
+                        + "current truncation point: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                        + " Txn not advance truncation point: " + message);
+            }
         }
         else {
             // the initiatorHSId is the ClientInterface mailbox.
@@ -746,13 +752,6 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             setRepairLogTruncationHandle(spHandle);
             m_mailbox.send(message.getInitiatorHSId(), message);
         }
-
-        if (m_repairLogTruncationHandle == currentTruncationHandle) {
-            tmLog.warn("[SpScheduler:handleInitiateResponseMessage] DuplicateCounter " +
-                    (counter == null ? "null": "is not null, in waiting state")
-                    + " Txn not advance truncation point: " + message);
-        }
-
     }
 
     // BorrowTaskMessages encapsulate a FragmentTaskMessage along with
@@ -1002,17 +1001,17 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 // sure we write ours into the message getting sent to the MPI
                 resp.setExecutorSiteId(m_mailbox.getHSId());
                 m_mailbox.send(counter.m_destinationId, resp);
+
+                tmLog.warn("DuplicateCounter DONE, transaction state NULL: " + (txn == null));
             }
             else if (result == DuplicateCounter.MISMATCH) {
                 VoltDB.crashGlobalVoltDB("HASH MISMATCH running multi-part procedure.", true, null);
             }
             // doing duplicate suppresion: all done.
 
-            if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter "
-                        + "in waiting state， "
-                        + " current truncation handle: " + m_repairLogTruncationHandle
-                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
+            else if (m_repairLogTruncationHandle == currentTruncationHandle) {
+                tmLog.warn("[FragResponseMsg Counter NON NULL] "
+                        + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
                         + "Txn not advance truncation point: " + message);
             }
 
@@ -1025,16 +1024,22 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 // on k-safety leader with safe reads configuration: one shot reads + normal MP reads
                 // we will have to buffer these reads until previous writes acked in the cluster.
 
-                if (txn != null && m_repairLogTruncationHandle == txn.m_spHandle) {
+                boolean canRelease = (txn == null ? message.getSpHandle() : txn.m_spHandle) == m_repairLogTruncationHandle;
 
+                if (txn == null) {
+                    m_bufferedReadLog.offer(m_mailbox, message, message.getSpHandle(), m_repairLogTruncationHandle);
                 } else {
-                    tmLog.warn("[SpScheduler:handleFragmentResponseMessage]: buffer a MP read frag,"
-                            + "either one shot read"
-                            + " current truncation handle: " + m_repairLogTruncationHandle
-                            + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ") ");
+                    m_bufferedReadLog.offer(m_mailbox, message, txn.m_spHandle, m_repairLogTruncationHandle);
                 }
 
-                m_bufferedReadLog.offer(m_mailbox, message, m_repairLogTruncationHandle);
+                if (! canRelease) {
+                    long txnId = (txn == null ? message.getSpHandle() : txn.m_spHandle);
+                    tmLog.warn("[FragResponseMsg buffer]: buffer a non-released MP read frag,"
+                            + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                            + " mp read spHandle: " + TxnEgo.debugTxnId(txnId)
+                            + " message: " + message.toString()
+                            );
+                }
                 return;
             }
 
@@ -1044,10 +1049,9 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
             }
 
             if (m_repairLogTruncationHandle == currentTruncationHandle) {
-                tmLog.warn("[SpScheduler:handleFragmentResponseMessage] DuplicateCounter NULL, txn state "
+                tmLog.warn("[FragResponseMsg Counter NULL] txn state "
                         + (txn == null? " NULL": "NOT NULL, read only:" + txn.isReadOnly() + ", txn done: " + txn.isDone())
-                        + " current truncation handle: " + m_repairLogTruncationHandle
-                        + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + "), "
+                        + " current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
                         + " Txn not advance truncation point: " + message);
             }
         }
@@ -1200,8 +1204,7 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
                 m_mailbox.send(m_sendToHSIds, new DumpMessage());
             }
         }
-        hostLog.warn("" + who + ": most recent SP handle: " + getCurrentTxnId() + " " +
-                TxnEgo.txnIdToString(getCurrentTxnId()));
+        hostLog.warn("" + who + ": most recent SP handle: " + TxnEgo.debugTxnId(getCurrentTxnId()));
         hostLog.warn("" + who + ": outstanding txns: " + m_outstandingTxns.keySet() + " " +
                 TxnEgo.txnIdCollectionToString(m_outstandingTxns.keySet()));
         hostLog.warn("" + who + ": TransactionTaskQueue: " + m_pendingTasks.toString());
@@ -1319,9 +1322,8 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
         if (m_defaultConsistencyReadLevel == ReadLevel.SAFE) {
             m_bufferedReadLog.releaseBufferedReads(m_mailbox, m_repairLogTruncationHandle);
         }
-        hostLog.warn("[SpScheduler] current truncation handle: " + m_repairLogTruncationHandle
-                + " (" + TxnEgo.txnIdToString(m_repairLogTruncationHandle) + ")"
-                + (m_defaultConsistencyReadLevel == Consistency.ReadLevel.SAFE ? m_bufferedReadLog.toString() : ""));
+        hostLog.warn("[dump] current truncation handle: " + TxnEgo.debugTxnId(m_repairLogTruncationHandle)
+                + " " + (m_defaultConsistencyReadLevel == Consistency.ReadLevel.SAFE ? m_bufferedReadLog.toString() : ""));
     }
 
     public void setConsistentReadLevelForTestOnly(ReadLevel readLevel) {
@@ -1341,19 +1343,19 @@ public class SpScheduler extends Scheduler implements SnapshotCompletionInterest
     private void setRepairLogTruncationHandle(long newHandle)
     {
         if (newHandle < m_repairLogTruncationHandle) {
-            hostLog.error("Is leader: " + m_isLeader + ", Invalid spHandle, new " + TxnEgo.txnIdToString(newHandle) +
-                    " old " + TxnEgo.txnIdToString(m_repairLogTruncationHandle));
+            hostLog.error("Is leader: " + m_isLeader + ", Invalid spHandle, new " + TxnEgo.debugTxnId(newHandle) +
+                    " old " + TxnEgo.debugTxnId(m_repairLogTruncationHandle));
             for (Exception e : m_ll) {
                 hostLog.error(Throwables.getStackTraceAsString(e));
             }
             throw new RuntimeException("Updating truncation point from " +
-                    TxnEgo.txnIdToString(m_repairLogTruncationHandle) +
-                    "to" + TxnEgo.txnIdToString(newHandle));
+                    TxnEgo.debugTxnId(m_repairLogTruncationHandle) +
+                    "to" + TxnEgo.debugTxnId(newHandle));
         }
         // TODO(xin): DELETE this tracking methods before release.
         m_ll.add(new RuntimeException("Updating truncation point from " +
-                TxnEgo.txnIdToString(m_repairLogTruncationHandle) +
-                "to" + TxnEgo.txnIdToString(newHandle)));
+                TxnEgo.debugTxnId(m_repairLogTruncationHandle) +
+                "to" + TxnEgo.debugTxnId(newHandle)));
 
         assert newHandle >= m_repairLogTruncationHandle : "new handle: " + newHandle + ", repairLog:" + m_repairLogTruncationHandle;
 
